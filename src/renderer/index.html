@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'"
+    />
+    <title>Gemini → Unreal</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark">G→U</span>
+        <div class="brand-text">
+          <strong>Gemini → Unreal</strong>
+          <span id="brandSub" class="muted">Build in Unreal Engine with Gemini</span>
+        </div>
+      </div>
+
+      <div class="topbar-right">
+        <button id="mcpPill" class="pill" type="button" title="Unreal Editor connection">
+          <span class="dot" id="mcpDot"></span>
+          <span id="mcpLabel">Editor: checking…</span>
+        </button>
+        <span class="pill pill-static" id="modelPill" title="Active model">—</span>
+        <span class="pill pill-static" id="usagePill" title="Tokens used this conversation">0 tok</span>
+        <button id="sessionsBtn" class="icon-btn" type="button" title="Switch session">Sessions</button>
+        <button id="newChatBtn" class="icon-btn" type="button" title="Start a new session">New</button>
+        <button id="settingsBtn" class="icon-btn" type="button" title="Settings">Settings</button>
+      </div>
+    </header>
+
+    <div class="session-bar">
+      <span class="session-title" id="sessionTitle" title="Rename this session">Session</span>
+      <button id="folderChip" class="folder-chip" type="button" title="Link a folder to this session">
+        <span id="folderLabel">Link a folder…</span>
+      </button>
+      <button id="unlinkFolderBtn" class="folder-x hidden" type="button" title="Unlink folder">×</button>
+      <span class="session-spacer"></span>
+      <button id="launchEditorBtn" class="launch-btn hidden" type="button">Start Unreal</button>
+    </div>
+
+    <main id="transcript" class="transcript" aria-live="polite"></main>
+
+    <footer class="composer">
+      <div id="statusLine" class="status-line"></div>
+      <div class="composer-row">
+        <textarea
+          id="input"
+          rows="1"
+          placeholder="Ask Gemini to build something in your open level…  (Enter to send, Shift+Enter for a new line)"
+          autocomplete="off"
+          spellcheck="true"
+        ></textarea>
+        <button id="sendBtn" class="send-btn" type="button">Send</button>
+        <button id="stopBtn" class="stop-btn hidden" type="button">Stop</button>
+      </div>
+    </footer>
+
+    <!-- Sessions drawer -->
+    <div id="sessionsOverlay" class="overlay hidden">
+      <section class="drawer drawer-left" role="dialog" aria-modal="true" aria-labelledby="sessionsTitle">
+        <div class="drawer-head">
+          <h2 id="sessionsTitle">Sessions</h2>
+          <div class="row">
+            <button id="newSessionBtn" class="primary small" type="button">New session</button>
+            <button id="closeSessions" class="icon-btn" type="button">Close</button>
+          </div>
+        </div>
+        <div class="drawer-body">
+          <p class="help">
+            Each session keeps its own conversation, linked folder and token count, and is
+            restored when you reopen the app.
+          </p>
+          <ul id="sessionList" class="session-list"></ul>
+        </div>
+      </section>
+    </div>
+
+    <!-- Settings drawer -->
+    <div id="overlay" class="overlay hidden">
+      <section class="drawer" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <div class="drawer-head">
+          <h2 id="settingsTitle">Settings</h2>
+          <button id="closeSettings" class="icon-btn" type="button">Close</button>
+        </div>
+
+        <div class="drawer-body">
+          <fieldset>
+            <legend>Gemini account</legend>
+            <p class="help">
+              Paste an API key from Google AI Studio. It is encrypted with your Windows user
+              account before it is written to disk, and is only ever sent to Google.
+            </p>
+            <div id="keyStatus" class="key-status"></div>
+            <div class="row">
+              <input
+                id="apiKey"
+                type="password"
+                placeholder="AIza…"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <button id="saveKeyBtn" class="primary" type="button">Verify &amp; save</button>
+            </div>
+            <div class="row row-tight">
+              <a href="https://aistudio.google.com/apikey" class="link" id="getKeyLink"
+                >Get a key from Google AI Studio →</a
+              >
+              <button id="clearKeyBtn" class="danger-link" type="button">Remove saved key</button>
+            </div>
+            <div id="keyError" class="error hidden"></div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Model</legend>
+            <div class="row">
+              <select id="modelSelect"></select>
+              <button id="refreshModelsBtn" class="ghost" type="button">Refresh</button>
+            </div>
+            <p id="modelHelp" class="help"></p>
+            <label class="field">
+              <span>Reasoning effort</span>
+              <select id="thinkingLevel">
+                <option value="low">Low — fastest, cheapest</option>
+                <option value="medium">Medium</option>
+                <option value="high">High — best for multi-step builds</option>
+              </select>
+            </label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Unreal Editor</legend>
+            <p class="help">
+              The Streamable-HTTP endpoint of the MCP server inside the editor. Start Unreal with
+              the MCP plugin enabled, then connect.
+            </p>
+            <div class="row">
+              <input id="mcpUrl" type="text" spellcheck="false" placeholder="http://127.0.0.1:8000/mcp" />
+              <button id="connectBtn" class="primary" type="button">Connect</button>
+            </div>
+            <div id="mcpDetail" class="mcp-detail"></div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Safety</legend>
+            <label class="checkbox">
+              <input id="requireApproval" type="checkbox" />
+              <span>
+                <strong>Ask before changes</strong>
+                <small
+                  >Anything that can modify your project — placing or deleting actors, editing
+                  assets, saving, loading levels — waits for your approval. Reads run
+                  freely.</small
+                >
+              </span>
+            </label>
+            <label class="field">
+              <span>Step limit per message</span>
+              <input id="maxSteps" type="number" min="1" max="200" />
+              <small class="help"
+                >How many model↔tool round trips one message may take before it pauses.</small
+              >
+            </label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Project instructions</legend>
+            <p class="help">
+              Appended to the system prompt on every message. Use it for naming conventions,
+              folder layout, which assets to prefer, or anything Gemini should never touch.
+            </p>
+            <textarea id="extraInstructions" rows="5" placeholder="e.g. Place all props under the &quot;Props&quot; outliner folder. Never modify anything in /Game/Core."></textarea>
+          </fieldset>
+
+          <p class="config-path">
+            Config: <code id="configPath"></code><br />
+            <span id="encNote" class="muted"></span>
+          </p>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,58 @@
+{
+  "name": "gemini-to-unreal-mcp",
+  "version": "1.0.0",
+  "description": "Desktop app that lets Gemini build inside Unreal Engine through the Unreal Editor MCP server.",
+  "main": "dist/main/main.js",
+  "author": "",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build:main": "tsc -p tsconfig.main.json",
+    "build:renderer": "tsc -p tsconfig.renderer.json",
+    "copy:assets": "node scripts/copy-assets.mjs",
+    "build": "npm run build:main && npm run build:renderer && npm run copy:assets",
+    "start": "npm run build && electron .",
+    "dev": "npm run build && electron . --dev",
+    "dist": "npm run build && electron-builder --win",
+    "check:unreal": "node scripts/check-unreal.cjs",
+    "check:bridge": "node scripts/check-bridge.cjs",
+    "check": "npm run check:unreal && npm run check:bridge && npm run check:retry && npm run check:project",
+    "check:retry": "node scripts/check-retry.cjs",
+    "ui:harness": "node scripts/ui-harness.mjs",
+    "check:project": "node scripts/check-project.cjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
+    "typescript": "^7.0.2"
+  },
+  "build": {
+    "appId": "dev.local.gemini-to-unreal-mcp",
+    "productName": "Gemini to Unreal",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
+    }
+  }
+}
