@@ -21,7 +21,8 @@
     "check:retry": "node scripts/check-retry.cjs",
     "ui:harness": "node scripts/ui-harness.mjs",
     "check:project": "node scripts/check-project.cjs",
-    "check:git": "node scripts/check-git.cjs"
+    "check:git": "node scripts/check-git.cjs",
+    "shortcut": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/create-shortcut.ps1"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

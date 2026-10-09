@@ -23,6 +23,29 @@ data stays on your machine, and every change can be gated behind an approval pro
 > servers can reach over the public internet. An editor on `127.0.0.1` is not one of
 > them, so the app bridges the calls locally instead. That is also the private option.
 
+## Getting started
+
+**Just want to run it?** Download the installer from the
+[latest release](https://github.com/pxpnowfoss/Gemini-To-Unreal-MCP/releases/latest)
+and run it. It bundles everything — no Node, no build step. Windows SmartScreen will
+warn that the publisher is unknown, because the installer is unsigned; choose
+*More info → Run anyway* if you are happy to.
+
+**Running from source?** Clone the repo and double-click **`Start Gemini to Unreal.cmd`**.
+It installs dependencies, fetches the Electron runtime, builds, and launches — and
+works from wherever you cloned it.
+
+Want it somewhere convenient?
+
+```bash
+npm run shortcut                 # shortcut in the project folder
+npm run shortcut -- -Desktop     # also on the Desktop
+npm run shortcut -- -StartMenu   # also in the Start Menu
+```
+
+A `.lnk` records absolute paths, so one cannot be shipped in the repository — it would
+point at whoever built it. The script generates a correct one for your machine.
+
 ## Requirements
 
 - Windows 10/11, Node.js 20+
