@@ -123,6 +123,7 @@ const connectBtn = $<HTMLButtonElement>('connectBtn');
 const mcpDetail = $<HTMLElement>('mcpDetail');
 
 const requireApproval = $<HTMLInputElement>('requireApproval');
+const requireGitApproval = $<HTMLInputElement>('requireGitApproval');
 const maxSteps = $<HTMLInputElement>('maxSteps');
 const extraInstructions = $<HTMLTextAreaElement>('extraInstructions');
 const configPath = $<HTMLElement>('configPath');
@@ -793,6 +794,7 @@ function applySettingsToForm(): void {
   thinkingLevel.value = settings.thinkingLevel;
   mcpUrlInput.value = settings.mcpUrl;
   requireApproval.checked = settings.requireApproval;
+  requireGitApproval.checked = settings.requireGitApproval;
   maxSteps.value = String(settings.maxSteps);
   extraInstructions.value = settings.extraInstructions;
 }
@@ -1090,6 +1092,9 @@ thinkingLevel.addEventListener('change', () =>
   patch({ thinkingLevel: thinkingLevel.value as ThinkingLevel }),
 );
 requireApproval.addEventListener('change', () => patch({ requireApproval: requireApproval.checked }));
+requireGitApproval.addEventListener('change', () =>
+  patch({ requireGitApproval: requireGitApproval.checked }),
+);
 maxSteps.addEventListener('change', () => {
   const n = Math.max(1, Math.min(200, Number(maxSteps.value) || 40));
   maxSteps.value = String(n);

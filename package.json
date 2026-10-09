@@ -17,10 +17,11 @@
     "dist": "npm run build && electron-builder --win",
     "check:unreal": "node scripts/check-unreal.cjs",
     "check:bridge": "node scripts/check-bridge.cjs",
-    "check": "npm run check:unreal && npm run check:bridge && npm run check:retry && npm run check:project",
+    "check": "npm run check:unreal && npm run check:bridge && npm run check:retry && npm run check:project && npm run check:git",
     "check:retry": "node scripts/check-retry.cjs",
     "ui:harness": "node scripts/ui-harness.mjs",
-    "check:project": "node scripts/check-project.cjs"
+    "check:project": "node scripts/check-project.cjs",
+    "check:git": "node scripts/check-git.cjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

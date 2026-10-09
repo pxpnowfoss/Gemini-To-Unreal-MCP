@@ -143,7 +143,9 @@ npm run ui:harness     # chat UI in a browser with a stubbed backend, no key nee
 npm run check:unreal   # can we reach the editor, and what does it expose?
 npm run check:bridge   # end-to-end agent-loop test against the live editor
 npm run check:retry    # overload/rate-limit handling (stubbed, no API key needed)
-npm run check          # all three
+npm run check:project  # linked-folder resolution and the reconnect supervisor
+npm run check:git      # git tools against a throwaway repo (no network, no creds)
+npm run check          # everything
 ```
 
 `check:unreal` is the one to run when something isn't working — it tells you whether
@@ -151,6 +153,27 @@ the problem is the editor or Gemini. `check:bridge` replays a scripted conversat
 through the real agent loop against your real editor, covering tool discovery, the
 approval gate, malformed arguments and the step ceiling. Every editor call it makes is
 read-only; the one write it scripts is declined on purpose to prove the gate holds.
+
+## Source control
+
+Gemini can also work the git repository in the session's linked folder:
+`git_status`, `git_log`, `git_diff`, `git_commit`, `git_push`, `git_init` and
+`git_set_remote`. So "commit this and push it" is part of the same conversation that
+built the thing.
+
+**Commits and pushes have their own approval toggle**, separate from *Ask before
+changes* and **on by default**. Editor changes are local and Unreal can undo them; a
+push leaves your machine and, on a public repository, cannot be unpublished. Turning
+off approvals so Gemini can build freely should not quietly also mean it can publish.
+
+Credentials are never handled by the app. Pushes use whatever credential helper git
+already has — Git Credential Manager, the `gh` CLI, an SSH agent — and an auth failure
+is reported as git's own error rather than prompting for anything.
+
+Two things the system prompt insists on, because they bite in Unreal projects:
+assets live in memory until saved, so committing before saving captures a stale tree;
+and a repository without a `.gitignore` will sweep in `Saved/`, `Intermediate/`,
+`Binaries/` and `DerivedDataCache/`, which the model is told to flag rather than commit.
 
 ## Request budget
 

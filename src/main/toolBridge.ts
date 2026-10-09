@@ -17,13 +17,114 @@
 
 import type { FunctionDeclaration } from './geminiClient';
 import type { ToolRisk } from '../shared/types';
+import { gitRisk } from './gitTools';
 
 export const TOOL_LIST_TOOLSETS = 'unreal_list_toolsets';
 export const TOOL_DESCRIBE_TOOLSET = 'unreal_describe_toolset';
 export const TOOL_CALL_TOOL = 'unreal_call_tool';
 
+const GIT_DECLARATIONS: FunctionDeclaration[] = [
+  {
+    type: 'function',
+    name: 'git_status',
+    description:
+      'Show the branch, working-tree changes and configured remotes of the git repository ' +
+      'in the folder linked to this session. Call this before committing or pushing so you ' +
+      'know what is actually changed.',
+    parameters: { type: 'object', properties: {} },
+  },
+  {
+    type: 'function',
+    name: 'git_log',
+    description: 'List recent commits in the linked repository, newest first.',
+    parameters: {
+      type: 'object',
+      properties: {
+        count: { type: 'integer', description: 'How many commits to list. Defaults to 20.' },
+      },
+    },
+  },
+  {
+    type: 'function',
+    name: 'git_diff',
+    description:
+      'Show what has changed in the linked repository. Returns a per-file summary by default; ' +
+      'ask for the full patch only when you need to read the actual edits.',
+    parameters: {
+      type: 'object',
+      properties: {
+        staged: { type: 'boolean', description: 'Diff what is staged rather than the working tree.' },
+        name_only: {
+          type: 'boolean',
+          description: 'True (default) for a file summary, false for the full patch.',
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    name: 'git_commit',
+    description:
+      'Stage and commit changes in the linked repository. Stages everything unless you name ' +
+      'specific paths. Write a real commit message describing what changed and why.',
+    parameters: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', description: 'The commit message.' },
+        paths: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Optional specific paths to stage. Omit to stage every change.',
+        },
+      },
+      required: ['message'],
+    },
+  },
+  {
+    type: 'function',
+    name: 'git_push',
+    description:
+      'Push the current branch to a remote, setting upstream if it has none. This PUBLISHES ' +
+      'the commits — on a public repository anyone can then read them. Check git_status first ' +
+      'and make sure the user wants this.',
+    parameters: {
+      type: 'object',
+      properties: {
+        remote: { type: 'string', description: 'Remote name. Defaults to "origin".' },
+      },
+    },
+  },
+  {
+    type: 'function',
+    name: 'git_init',
+    description:
+      'Create a git repository in the linked folder, if it is not one already.',
+    parameters: {
+      type: 'object',
+      properties: {
+        branch: { type: 'string', description: 'Initial branch name. Defaults to "main".' },
+      },
+    },
+  },
+  {
+    type: 'function',
+    name: 'git_set_remote',
+    description:
+      'Point the linked repository at a remote URL, adding it or updating it in place.',
+    parameters: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'An https:// or git@ remote URL.' },
+        name: { type: 'string', description: 'Remote name. Defaults to "origin".' },
+      },
+      required: ['url'],
+    },
+  },
+];
+
 export function buildFunctionDeclarations(): FunctionDeclaration[] {
   return [
+    ...GIT_DECLARATIONS,
     {
       type: 'function',
       name: TOOL_LIST_TOOLSETS,
@@ -143,6 +244,10 @@ const READ_ONLY_PREFIXES = [
 const NON_MUTATING_EXACT = new Set([
   'list_toolsets',
   'describe_toolset',
+  // The wrapper names the model actually sees. Discovery never changes anything;
+  // `unreal_call_tool` stays a write because its risk depends on the inner tool.
+  'unreal_list_toolsets',
+  'unreal_describe_toolset',
   'select_actors',
   'select_assets',
   'focus_on_actors',
@@ -168,6 +273,10 @@ function toWords(name: string): string[] {
 }
 
 export function classifyRisk(toolName: string): ToolRisk {
+  // Git verbs do not follow Unreal's naming, and "git_status" would otherwise be
+  // read as a write because it starts with "git".
+  if (toolName.startsWith('git_')) return gitRisk(toolName);
+
   const bare = toolName.includes('.') ? toolName.slice(toolName.lastIndexOf('.') + 1) : toolName;
   const words = toWords(bare);
   const normalised = words.join('_');
@@ -255,6 +364,26 @@ const SYSTEM_INSTRUCTION = [
   '- Some tools mark filter arguments as required even when they are optional in spirit',
   '  (`find_actors` requires `name`, `tag` and `collision_channels`). Pass `""` and `[]` for the',
   '  filters you do not want to apply.',
+  '',
+  '## Source control',
+  '',
+  'You also have git tools — `git_status`, `git_log`, `git_diff`, `git_commit`, `git_push`,',
+  '`git_init`, `git_set_remote` — which run against the folder linked to this session, not',
+  'the editor. Use them when the user asks to commit, push, or check what has changed.',
+  '',
+  '- **Look before you commit.** Run `git_status` and `git_diff` first and tell the user what',
+  '  you are about to include. Never commit blind.',
+  '- **Save Unreal work first.** Assets and levels live in memory until saved; committing',
+  '  before saving captures a stale tree. Save through the editor, then commit.',
+  '- **Write real commit messages** describing what changed and why, not "update".',
+  '- **Pushing publishes.** On a public repository the commits become readable by anyone, and',
+  '  they cannot be unpublished. Confirm the user wants it, and never push something you only',
+  '  assumed they wanted committed.',
+  '- Binary Unreal content makes for large commits. If the diff looks enormous or sweeps in',
+  '  `Saved/`, `Intermediate/`, `Binaries/` or `DerivedDataCache/`, say so — the repository',
+  '  probably needs a .gitignore before anything is committed.',
+  '- Credentials are not yours to handle. If a push fails on authentication, report the',
+  '  error from git and let the user sort out their credential helper.',
   '',
   '## Recipes that are easy to get wrong',
   '',

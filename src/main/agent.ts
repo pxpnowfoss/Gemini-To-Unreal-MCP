@@ -28,6 +28,7 @@ import {
   classifyRisk,
   parseArgumentsJson,
 } from './toolBridge';
+import { runGitTool } from './gitTools';
 import type { AgentEvent, AppSettings, ToolCallRecord, UsageTotals } from '../shared/types';
 
 /** Tool output longer than this is truncated before going back to the model. */
@@ -44,6 +45,8 @@ export class Agent {
   private abort: AbortController | null = null;
   private pending = new Map<string, PendingApproval>();
   private approveAll = false;
+  /** Tracked separately so approving editor writes never implies approving pushes. */
+  private approveAllGit = false;
   private usage: UsageTotals = { requests: 0, inputTokens: 0, outputTokens: 0, thoughtTokens: 0, totalTokens: 0 };
 
   /** Folder linked to the active session, surfaced to the model as context. */
@@ -73,6 +76,7 @@ export class Agent {
     this.previousInteractionId = previousInteractionId;
     this.usage = { ...usage };
     this.approveAll = false;
+    this.approveAllGit = false;
     this.emit({ type: 'usage', usage: { ...this.usage } });
   }
 
@@ -80,6 +84,7 @@ export class Agent {
   resetConversation(): void {
     this.previousInteractionId = null;
     this.approveAll = false;
+    this.approveAllGit = false;
     this.usage = { requests: 0, inputTokens: 0, outputTokens: 0, thoughtTokens: 0, totalTokens: 0 };
   }
 
@@ -217,6 +222,11 @@ export class Agent {
       typeof call.arguments === 'string'
         ? safeParse(call.arguments)
         : (call.arguments as Record<string, unknown> | undefined) ?? {};
+
+    // Git tools run locally against the session's linked folder, not the editor.
+    if (call.name.startsWith('git_')) {
+      return this.runGitCall(call, rawArgs, settings, started);
+    }
 
     let toolsetName: string | null = null;
     let unrealTool: string;
@@ -360,6 +370,76 @@ export class Agent {
       this.emit({ type: 'tool-update', call: { ...record } });
       return this.errorResult(call, message);
     }
+  }
+
+  /** Executes one git tool, gated by its own approval setting. */
+  private async runGitCall(
+    call: { id: string; name: string },
+    args: Record<string, unknown>,
+    settings: AppSettings,
+    started: number,
+  ): Promise<FunctionResultStep> {
+    const record: ToolCallRecord = {
+      id: call.id || randomUUID(),
+      toolsetName: null,
+      toolName: call.name,
+      label: call.name,
+      args,
+      risk: classifyRisk(call.name),
+      status: 'pending',
+      result: null,
+      error: null,
+      durationMs: null,
+    };
+
+    this.emit({ type: 'tool-call', call: record });
+
+    if (settings.requireGitApproval && record.risk === 'write' && !this.approveAllGit) {
+      record.status = 'awaiting-approval';
+      this.emit({ type: 'approval-request', call: { ...record } });
+
+      const decision = await new Promise<{ approved: boolean; always: boolean }>((resolve) => {
+        this.pending.set(record.id, { resolve });
+      });
+
+      if (!decision.approved) {
+        record.status = 'denied';
+        record.error = 'Declined by the user.';
+        record.durationMs = Date.now() - started;
+        this.emit({ type: 'tool-update', call: { ...record } });
+        return {
+          type: 'function_result',
+          name: call.name,
+          call_id: call.id,
+          result: [
+            {
+              type: 'text',
+              text:
+                'The user declined this git operation. Do not retry it. Ask what they would ' +
+                'prefer before touching the repository again.',
+            },
+          ],
+        };
+      }
+      if (decision.always) this.approveAllGit = true;
+    }
+
+    record.status = 'running';
+    this.emit({ type: 'tool-update', call: { ...record } });
+
+    const result = await runGitTool(call.name, args, this.folderPath);
+    record.status = result.ok ? 'ok' : 'error';
+    record.durationMs = Date.now() - started;
+    if (result.ok) record.result = result.output;
+    else record.error = result.output;
+    this.emit({ type: 'tool-update', call: { ...record } });
+
+    return {
+      type: 'function_result',
+      name: call.name,
+      call_id: call.id,
+      result: [{ type: 'text', text: result.output }],
+    };
   }
 
   private errorResult(

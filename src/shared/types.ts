@@ -7,6 +7,12 @@ export interface AppSettings {
   model: string;
   /** Ask before running any tool that can modify the project. */
   requireApproval: boolean;
+  /**
+   * Ask before commits and pushes. Separate from `requireApproval` because
+   * pushing publishes code outside this machine and cannot be undone, so it
+   * stays on even when editor changes are allowed to run freely.
+   */
+  requireGitApproval: boolean;
   /** Max model<->tool round trips for a single user message. */
   maxSteps: number;
   /** Extra text appended to the system instruction. */
@@ -137,6 +143,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   mcpUrl: 'http://127.0.0.1:8000/mcp',
   model: 'gemini-3.8-flash',
   requireApproval: false,
+  requireGitApproval: true,
   maxSteps: 40,
   extraInstructions: '',
   thinkingLevel: 'high',
