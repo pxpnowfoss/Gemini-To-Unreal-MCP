@@ -27,7 +27,8 @@ data stays on your machine, and every change can be gated behind an approval pro
 
 **Just want to run it?** Download the installer from the
 [latest release](https://github.com/pxpnowfoss/Gemini-To-Unreal-MCP/releases/latest)
-and run it. It bundles everything — no Node, no build step. Windows SmartScreen will
+and run it. It bundles everything — no Node, no build step — and puts a
+**Gemini to Unreal** shortcut on your Desktop and in the Start Menu when it finishes. Windows SmartScreen will
 warn that the publisher is unknown, because the installer is unsigned; choose
 *More info → Run anyway* if you are happy to.
 

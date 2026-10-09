@@ -14,7 +14,7 @@
     "build": "npm run build:main && npm run build:renderer && npm run copy:assets",
     "start": "npm run build && electron .",
     "dev": "npm run build && electron . --dev",
-    "dist": "npm run build && electron-builder --win",
+    "dist": "npm run icon && npm run build && electron-builder --win",
     "check:unreal": "node scripts/check-unreal.cjs",
     "check:bridge": "node scripts/check-bridge.cjs",
     "check": "npm run check:unreal && npm run check:bridge && npm run check:retry && npm run check:project && npm run check:git",
@@ -22,7 +22,8 @@
     "ui:harness": "node scripts/ui-harness.mjs",
     "check:project": "node scripts/check-project.cjs",
     "check:git": "node scripts/check-git.cjs",
-    "shortcut": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/create-shortcut.ps1"
+    "shortcut": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/create-shortcut.ps1",
+    "icon": "node scripts/make-icon.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
@@ -49,12 +50,18 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "perMachine": false
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Gemini to Unreal",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
     }
   }
 }
