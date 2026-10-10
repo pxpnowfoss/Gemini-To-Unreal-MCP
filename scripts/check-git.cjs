@@ -107,8 +107,48 @@ const bare = join(root, 'remote.git');
     }
     check('commits actually landed on the remote', /update a/.test(remoteLog), remoteLog.slice(0, 160));
 
+    console.log('\nBranching');
+    const branches0 = await runGitTool('git_branch', {}, work);
+    check('git_branch reports the current branch', /current: main/.test(branches0.output), branches0.output.slice(0, 120));
+
+    const badName = await runGitTool('git_switch', { name: 'has spaces', create: true }, work);
+    check('rejects an invalid branch name', !badName.ok && /not a valid branch name/i.test(badName.output), badName.output.slice(0, 100));
+    const dashName = await runGitTool('git_switch', { name: '--force', create: true }, work);
+    check('rejects a flag-shaped branch name', !dashName.ok, dashName.output.slice(0, 100));
+
+    const made = await runGitTool('git_switch', { name: 'feature/lighting', create: true }, work);
+    check('creates and switches to a branch', made.ok, made.output.slice(0, 120));
+    const branches1 = await runGitTool('git_branch', {}, work);
+    check('new branch is now current', /current: feature\/lighting/.test(branches1.output), branches1.output.slice(0, 120));
+
+    const dupe = await runGitTool('git_switch', { name: 'feature/lighting', create: true }, work);
+    check('creating an existing branch explains itself', !dupe.ok && /already exists/i.test(dupe.output), dupe.output.slice(0, 140));
+
+    const back = await runGitTool('git_switch', { name: 'main' }, work);
+    check('switches to an existing branch', back.ok, back.output.slice(0, 120));
+    const branches2 = await runGitTool('git_branch', {}, work);
+    check('switched back to main', /current: main/.test(branches2.output), branches2.output.slice(0, 120));
+
+    const fromBase = await runGitTool('git_switch', { name: 'hotfix/crash', create: true, from: 'main' }, work);
+    check('creates a branch from a named base', fromBase.ok, fromBase.output.slice(0, 120));
+
+    console.log('\nPushing a branch');
+    writeFileSync(join(work, 'c.txt'), 'branch work\n');
+    await runGitTool('git_commit', { message: 'work on the hotfix branch' }, work);
+    const pushBranch = await runGitTool('git_push', {}, work);
+    check('pushes the new branch and sets upstream', pushBranch.ok, pushBranch.output.slice(0, 200));
+
+    const remoteBranches = execFileSync('git', ['branch'], { cwd: bare, encoding: 'utf8' });
+    check('branch exists on the remote', /hotfix\/crash/.test(remoteBranches), remoteBranches.slice(0, 160));
+
+    const named = await runGitTool('git_push', { branch: 'main' }, work);
+    check('pushes a branch by name while on another', named.ok, named.output.slice(0, 160));
+    const remoteAfter = execFileSync('git', ['branch'], { cwd: bare, encoding: 'utf8' });
+    check('both branches now on the remote', /main/.test(remoteAfter) && /hotfix\/crash/.test(remoteAfter), remoteAfter.slice(0, 160));
+
     console.log('\nRisk classification');
-    check('reads are not gated', gitRisk('git_status') === 'read' && gitRisk('git_diff') === 'read', 'read misclassified');
+    check('reads are not gated', gitRisk('git_status') === 'read' && gitRisk('git_diff') === 'read' && gitRisk('git_branch') === 'read', 'read misclassified');
+    check('switching branches is gated', gitRisk('git_switch') === 'write', 'switch misclassified');
     check('commit and push are gated', gitRisk('git_commit') === 'write' && gitRisk('git_push') === 'write', 'write misclassified');
 
     console.log('\nInjection safety');

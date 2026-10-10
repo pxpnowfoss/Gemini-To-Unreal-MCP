@@ -181,9 +181,18 @@ read-only; the one write it scripts is declined on purpose to prove the gate hol
 ## Source control
 
 Gemini can also work the git repository in the session's linked folder:
-`git_status`, `git_log`, `git_diff`, `git_commit`, `git_push`, `git_init` and
-`git_set_remote`. So "commit this and push it" is part of the same conversation that
-built the thing.
+`git_status`, `git_log`, `git_diff`, `git_branch`, `git_switch`, `git_commit`,
+`git_push`, `git_init` and `git_set_remote`. So "branch off main, commit this and push
+it" is part of the same conversation that built the thing.
+
+If the folder is already a clone, nothing needs configuring — the remote is read out of
+the repository, so a push goes where that repo already points. A folder that has never
+been a repository needs `git_init` and then a remote URL from you once; after that git
+remembers it.
+
+Branches are created with `git_switch` (`create: true`), live locally until pushed, and
+get their upstream set on the first `git_push`. A push defaults to the checked-out
+branch, or takes one by name.
 
 **Commits and pushes have their own approval toggle**, separate from *Ask before
 changes* and **on by default**. Editor changes are local and Unreal can undo them; a

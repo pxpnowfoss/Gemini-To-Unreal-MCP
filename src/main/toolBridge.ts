@@ -63,6 +63,41 @@ const GIT_DECLARATIONS: FunctionDeclaration[] = [
   },
   {
     type: 'function',
+    name: 'git_branch',
+    description:
+      'List branches in the linked repository: which one is checked out, the local branches ' +
+      'with their upstreams, and the remote branches.',
+    parameters: { type: 'object', properties: {} },
+  },
+  {
+    type: 'function',
+    name: 'git_switch',
+    description:
+      'Switch to a branch, optionally creating it first. Creating a branch does not publish ' +
+      'it — commit, then git_push, which sets the upstream on first push.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description:
+            'Branch name, e.g. "feature/stadium-lighting". No spaces and no leading dash.',
+        },
+        create: {
+          type: 'boolean',
+          description: 'True to create the branch. Omit or false to switch to an existing one.',
+        },
+        from: {
+          type: 'string',
+          description:
+            'When creating, the branch or commit to start from. Defaults to the current HEAD.',
+        },
+      },
+      required: ['name'],
+    },
+  },
+  {
+    type: 'function',
     name: 'git_commit',
     description:
       'Stage and commit changes in the linked repository. Stages everything unless you name ' +
@@ -91,6 +126,10 @@ const GIT_DECLARATIONS: FunctionDeclaration[] = [
       type: 'object',
       properties: {
         remote: { type: 'string', description: 'Remote name. Defaults to "origin".' },
+        branch: {
+          type: 'string',
+          description: 'Branch to push. Defaults to the one currently checked out.',
+        },
       },
     },
   },
@@ -367,15 +406,21 @@ const SYSTEM_INSTRUCTION = [
   '',
   '## Source control',
   '',
-  'You also have git tools — `git_status`, `git_log`, `git_diff`, `git_commit`, `git_push`,',
-  '`git_init`, `git_set_remote` — which run against the folder linked to this session, not',
-  'the editor. Use them when the user asks to commit, push, or check what has changed.',
+  'You also have git tools — `git_status`, `git_log`, `git_diff`, `git_branch`, `git_switch`,',
+  '`git_commit`, `git_push`, `git_init`, `git_set_remote` — which run against the folder',
+  'linked to this session, not the editor. Use them when the user asks to commit, push,',
+  'branch, or check what has changed.',
   '',
   '- **Look before you commit.** Run `git_status` and `git_diff` first and tell the user what',
   '  you are about to include. Never commit blind.',
   '- **Save Unreal work first.** Assets and levels live in memory until saved; committing',
   '  before saving captures a stale tree. Save through the editor, then commit.',
   '- **Write real commit messages** describing what changed and why, not "update".',
+  '- **Branching.** `git_switch` with `create: true` makes a branch; it exists only locally',
+  '  until you commit and `git_push`, which sets its upstream on the first push. Check',
+  '  `git_status` before branching: switching carries uncommitted changes with you, which is',
+  '  usually what people want but occasionally is not. Name branches the way the repository',
+  '  already does — look at `git_branch` before inventing a convention.',
   '- **Pushing publishes.** On a public repository the commits become readable by anyone, and',
   '  they cannot be unpublished. Confirm the user wants it, and never push something you only',
   '  assumed they wanted committed.',

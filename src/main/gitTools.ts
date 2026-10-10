@@ -68,13 +68,28 @@ export const GIT_TOOLS = [
   'git_push',
   'git_init',
   'git_set_remote',
+  'git_branch',
+  'git_switch',
 ] as const;
 
 export type GitToolName = (typeof GIT_TOOLS)[number];
 
+const READ_ONLY_GIT = new Set(['git_status', 'git_log', 'git_diff', 'git_branch']);
+
 /** Reads are safe to run unattended; the rest change history or publish it. */
 export function gitRisk(name: string): 'read' | 'write' {
-  return name === 'git_status' || name === 'git_log' || name === 'git_diff' ? 'read' : 'write';
+  return READ_ONLY_GIT.has(name) ? 'read' : 'write';
+}
+
+/**
+ * Lets git itself decide whether a branch name is legal, rather than guessing at
+ * its rules here. Also rejects a leading dash, which would otherwise be read as
+ * a flag by whatever command the name is passed to.
+ */
+async function validBranchName(cwd: string, name: string): Promise<boolean> {
+  if (!name || name.startsWith('-')) return false;
+  const res = await run(cwd, ['check-ref-format', '--branch', name]);
+  return res.ok;
 }
 
 export async function runGitTool(
@@ -146,11 +161,72 @@ export async function runGitTool(
       return { ok: committed.ok, output: committed.output + '\n\nfiles:\n' + pending.output };
     }
 
+    case 'git_branch': {
+      const current = await run(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']);
+      const local = await run(cwd, ['branch', '-vv']);
+      const remote = await run(cwd, ['branch', '-r']);
+      return {
+        ok: local.ok,
+        output:
+          'current: ' + current.output.trim() +
+          '\n\nlocal branches:\n' + local.output +
+          '\n\nremote branches:\n' + remote.output,
+      };
+    }
+
+    case 'git_switch': {
+      const name = typeof args['name'] === 'string' ? args['name'].trim() : '';
+      const create = args['create'] === true;
+      const from = typeof args['from'] === 'string' ? args['from'].trim() : '';
+
+      if (!(await validBranchName(cwd, name))) {
+        return {
+          ok: false,
+          output:
+            'ERROR: "' + name + '" is not a valid branch name. Use something like ' +
+            '"feature/stadium-lighting" — no spaces, no leading dash.',
+        };
+      }
+
+      if (create) {
+        if (from && !(await validBranchName(cwd, from))) {
+          // `from` can also be a tag or sha, so only reject the obviously unsafe.
+          if (from.startsWith('-')) {
+            return { ok: false, output: 'ERROR: invalid base ref "' + from + '".' };
+          }
+        }
+        const argv = ['switch', '-c', name];
+        if (from) argv.push(from);
+        const made = await run(cwd, argv);
+        if (!made.ok && /already exists/i.test(made.output)) {
+          return {
+            ok: false,
+            output:
+              made.output +
+              '\n\nThe branch already exists — call git_switch again without `create` to move to it.',
+          };
+        }
+        return made;
+      }
+
+      return run(cwd, ['switch', name]);
+    }
+
     case 'git_push': {
+      const explicit = typeof args['branch'] === 'string' ? args['branch'].trim() : '';
+      if (explicit && !(await validBranchName(cwd, explicit))) {
+        return { ok: false, output: 'ERROR: "' + explicit + '" is not a valid branch name.' };
+      }
+
       const branchRes = await run(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']);
-      const branch = branchRes.output.trim();
+      const branch = explicit || branchRes.output.trim();
       if (!branch || branch === 'HEAD') {
-        return { ok: false, output: 'ERROR: not on a branch (detached HEAD); cannot push.' };
+        return {
+          ok: false,
+          output:
+            'ERROR: not on a branch (detached HEAD). Name a branch with `branch`, or switch to ' +
+            'one with git_switch first.',
+        };
       }
 
       const remotes = await run(cwd, ['remote']);
