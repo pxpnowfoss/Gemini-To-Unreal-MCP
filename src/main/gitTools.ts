@@ -60,6 +60,45 @@ async function isRepo(cwd: string): Promise<boolean> {
   return res.ok && res.output.trim().startsWith('true');
 }
 
+/** Structured branch state for the UI, as opposed to the prose the model reads. */
+export interface BranchInfo {
+  isRepo: boolean;
+  current: string | null;
+  branches: string[];
+  /** True when the working tree has uncommitted changes. */
+  dirty: boolean;
+}
+
+export async function getBranchInfo(folderPath: string | null): Promise<BranchInfo> {
+  const empty: BranchInfo = { isRepo: false, current: null, branches: [], dirty: false };
+  const where = resolveCwd(folderPath);
+  if (!where.ok) return empty;
+  const cwd = where.cwd;
+  if (!(await isRepo(cwd))) return empty;
+
+  const current = await run(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']);
+  const list = await run(cwd, ['for-each-ref', '--format=%(refname:short)', 'refs/heads']);
+  const dirty = await run(cwd, ['status', '--porcelain']);
+
+  return {
+    isRepo: true,
+    current: current.ok ? current.output.trim() : null,
+    branches: list.ok
+      ? list.output.split(/\r?\n/).map((b) => b.trim()).filter((b) => b && b !== '(no output)')
+      : [],
+    dirty: dirty.ok && dirty.output.trim() !== '' && dirty.output !== '(no output)',
+  };
+}
+
+/** Branch switch driven by the user clicking, rather than by the model. */
+export async function switchBranch(
+  folderPath: string | null,
+  name: string,
+  create: boolean,
+): Promise<GitResult> {
+  return runGitTool('git_switch', { name, create }, folderPath);
+}
+
 export const GIT_TOOLS = [
   'git_status',
   'git_log',

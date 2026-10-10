@@ -42,6 +42,14 @@ export interface ModelInfo {
   outputTokenLimit: number;
 }
 
+/** Git branch state of the session's linked folder, for the session bar. */
+export interface BranchState {
+  isRepo: boolean;
+  current: string | null;
+  branches: string[];
+  dirty: boolean;
+}
+
 export interface LinkedProject {
   /** Absolute path to the .uproject found in the session's linked folder. */
   uprojectPath: string;
@@ -104,7 +112,8 @@ export type AgentEvent =
   | { type: 'turn-end'; turnId: string; stoppedEarly: boolean }
   | { type: 'error'; message: string }
   | { type: 'mcp-status'; status: McpStatus }
-  | { type: 'linked-project'; project: LinkedProject | null };
+  | { type: 'linked-project'; project: LinkedProject | null }
+  | { type: 'branch-info'; info: BranchState };
 
 export interface ApprovalDecision {
   callId: string;

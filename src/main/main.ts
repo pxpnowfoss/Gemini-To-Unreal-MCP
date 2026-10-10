@@ -12,6 +12,7 @@ import { GeminiClient, GeminiError } from './geminiClient';
 import { Agent } from './agent';
 import { SessionStore, toSummary } from './sessionStore';
 import { EditorSupervisor } from './editorSupervisor';
+import { getBranchInfo, switchBranch } from './gitTools';
 import { findProject, runningEditorProjects, samePath, projectExists } from './projectLocator';
 import type { ProjectInfo } from './projectLocator';
 import { FALLBACK_MODELS } from '../shared/types';
@@ -23,6 +24,7 @@ import type {
   SessionRecord,
   SessionSummary,
   LinkedProject,
+  BranchState,
 } from '../shared/types';
 
 let win: BrowserWindow | null = null;
@@ -72,6 +74,8 @@ function recordEvent(event: AgentEvent): void {
     case 'turn-end':
       sessions.setInteractionId(agent.conversationId);
       sessions.flush();
+      // The model may have branched or committed; keep the chip honest.
+      void broadcastBranch();
       break;
   }
 }
@@ -114,12 +118,19 @@ async function detectMismatch(): Promise<string | null> {
   );
 }
 
+/** Pushes current branch state to the UI. */
+async function broadcastBranch(): Promise<void> {
+  const info = await getBranchInfo(sessions?.current?.folderPath ?? null);
+  send({ type: 'branch-info', info });
+}
+
 /** Points the agent at a session's conversation state and linked folder. */
 function activate(record: SessionRecord): SessionRecord {
   agent.cancel();
   agent.restore(record.previousInteractionId, record.usage);
   agent.folderPath = record.folderPath;
   void linkedProject().then((project) => send({ type: 'linked-project', project }));
+  void broadcastBranch();
   return record;
 }
 
@@ -334,6 +345,19 @@ function registerIpc(): void {
     agent.resolveApproval(callId, approved, always);
     return { ok: true };
   });
+
+  ipcMain.handle('git:info', (): Promise<BranchState> =>
+    getBranchInfo(sessions.current?.folderPath ?? null),
+  );
+
+  ipcMain.handle(
+    'git:switch',
+    async (_e, name: string, create: boolean): Promise<{ ok: boolean; output: string }> => {
+      const res = await switchBranch(sessions.current?.folderPath ?? null, name, create);
+      void broadcastBranch();
+      return res;
+    },
+  );
 
   ipcMain.handle('editor:project', (): Promise<LinkedProject | null> => linkedProject());
 

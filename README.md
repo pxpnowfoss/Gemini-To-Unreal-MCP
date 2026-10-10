@@ -194,6 +194,12 @@ Branches are created with `git_switch` (`create: true`), live locally until push
 get their upstream set on the first `git_push`. A push defaults to the checked-out
 branch, or takes one by name.
 
+You do not have to go through the model for this. When the linked folder is a
+repository, the session bar shows a **branch chip** — the current branch, with an amber
+dot when the working tree is dirty. Click it to switch branches or type a name and
+create one. It refreshes after every turn, so a branch the model creates shows up
+there too.
+
 **Commits and pushes have their own approval toggle**, separate from *Ask before
 changes* and **on by default**. Editor changes are local and Unreal can undo them; a
 push leaves your machine and, on a public repository, cannot be unpublished. Turning

@@ -4,6 +4,7 @@
  */
 
 import type {
+  BranchState,
   LinkedProject,
   SessionRecord,
   SessionSummary,
@@ -61,6 +62,8 @@ interface RendererApi {
   linkFolder(id: string): Promise<SessionRecord | null>;
   unlinkFolder(id: string): Promise<SessionRecord | null>;
   revealFolder(folderPath: string): Promise<{ ok: boolean }>;
+  gitInfo(): Promise<BranchState>;
+  gitSwitch(name: string, create: boolean): Promise<{ ok: boolean; output: string }>;
   linkedProject(): Promise<LinkedProject | null>;
   launchEditor(): Promise<{ ok: boolean; error?: string }>;
 }
@@ -102,6 +105,14 @@ const folderChip = $<HTMLButtonElement>('folderChip');
 const folderLabel = $<HTMLElement>('folderLabel');
 const unlinkFolderBtn = $<HTMLButtonElement>('unlinkFolderBtn');
 const launchEditorBtn = $<HTMLButtonElement>('launchEditorBtn');
+const branchChip = $<HTMLButtonElement>('branchChip');
+const branchLabel = $<HTMLElement>('branchLabel');
+const branchDirty = $<HTMLElement>('branchDirty');
+const branchMenu = $<HTMLElement>('branchMenu');
+const branchList = $<HTMLElement>('branchList');
+const newBranchInput = $<HTMLInputElement>('newBranchInput');
+const newBranchBtn = $<HTMLButtonElement>('newBranchBtn');
+const branchError = $<HTMLElement>('branchError');
 const newChatBtn = $<HTMLButtonElement>('newChatBtn');
 const overlay = $<HTMLElement>('overlay');
 const closeSettings = $<HTMLButtonElement>('closeSettings');
@@ -138,6 +149,7 @@ let mcp: McpStatus;
 let running = false;
 let session: SessionRecord | null = null;
 let linkedProjectInfo: LinkedProject | null = null;
+let branchState: BranchState = { isRepo: false, current: null, branches: [], dirty: false };
 
 /** Live tool cards for the current turn, keyed by the model's call id. */
 const toolCards = new Map<string, HTMLElement>();
@@ -713,6 +725,69 @@ function renderSessionBar(): void {
   }
 }
 
+/** The chip only appears when the linked folder is actually a repository. */
+function renderBranch(info: BranchState): void {
+  branchState = info;
+  branchChip.classList.toggle('hidden', !info.isRepo);
+  if (!info.isRepo) {
+    closeBranchMenu();
+    return;
+  }
+  branchLabel.textContent = info.current ?? 'detached';
+  branchDirty.classList.toggle('hidden', !info.dirty);
+  branchChip.title =
+    'On ' + (info.current ?? 'a detached HEAD') +
+    (info.dirty ? ' · uncommitted changes' : ' · working tree clean') +
+    '\nClick to switch or create a branch';
+}
+
+async function refreshBranch(): Promise<void> {
+  renderBranch(await api.gitInfo());
+}
+
+function closeBranchMenu(): void {
+  branchMenu.classList.add('hidden');
+  branchChip.classList.remove('open');
+  branchError.classList.add('hidden');
+}
+
+function openBranchMenu(): void {
+  branchList.innerHTML = '';
+  for (const name of branchState.branches) {
+    const li = el('li', name === branchState.current ? 'current' : undefined);
+    li.textContent = name;
+    if (name !== branchState.current) {
+      li.addEventListener('click', () => void doSwitch(name, false));
+    }
+    branchList.appendChild(li);
+  }
+  if (!branchState.branches.length) {
+    const li = el('li');
+    li.textContent = '(no branches yet — commit something first)';
+    branchList.appendChild(li);
+  }
+  branchError.classList.add('hidden');
+  newBranchInput.value = '';
+  branchMenu.classList.remove('hidden');
+  branchChip.classList.add('open');
+  newBranchInput.focus();
+}
+
+async function doSwitch(name: string, create: boolean): Promise<void> {
+  branchError.classList.add('hidden');
+  const res = await api.gitSwitch(name, create);
+  if (!res.ok) {
+    branchError.textContent = res.output;
+    branchError.classList.remove('hidden');
+    await refreshBranch();
+    return;
+  }
+  closeBranchMenu();
+  await refreshBranch();
+  setStatus('Now on ' + name);
+  window.setTimeout(() => setStatus(''), 4000);
+}
+
 /** The launch button only earns its place when there is something to launch. */
 function refreshLaunchButton(): void {
   const canLaunch = Boolean(linkedProjectInfo) && !mcp?.connected;
@@ -730,6 +805,7 @@ function refreshLaunchButton(): void {
 async function refreshLinkedProject(): Promise<void> {
   linkedProjectInfo = await api.linkedProject();
   refreshLaunchButton();
+  await refreshBranch();
 }
 
 async function refreshSessionList(): Promise<void> {
@@ -882,6 +958,10 @@ function handleEvent(event: AgentEvent): void {
       setRunning(false);
       break;
 
+    case 'branch-info':
+      renderBranch(event.info);
+      break;
+
     case 'linked-project':
       linkedProjectInfo = event.project;
       refreshLaunchButton();
@@ -995,6 +1075,45 @@ unlinkFolderBtn.addEventListener('click', async (e) => {
     session = updated;
     renderSessionBar();
     await refreshLinkedProject();
+  }
+});
+
+branchChip.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (branchMenu.classList.contains('hidden')) openBranchMenu();
+  else closeBranchMenu();
+});
+
+branchMenu.addEventListener('click', (e) => e.stopPropagation());
+
+// Click-away and Escape both dismiss the popover.
+document.addEventListener('click', () => {
+  if (!branchMenu.classList.contains('hidden')) closeBranchMenu();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !branchMenu.classList.contains('hidden')) closeBranchMenu();
+});
+
+async function createBranchFromInput(): Promise<void> {
+  const name = newBranchInput.value.trim();
+  if (!name) {
+    branchError.textContent = 'Give the branch a name.';
+    branchError.classList.remove('hidden');
+    return;
+  }
+  newBranchBtn.disabled = true;
+  try {
+    await doSwitch(name, true);
+  } finally {
+    newBranchBtn.disabled = false;
+  }
+}
+
+newBranchBtn.addEventListener('click', () => void createBranchFromInput());
+newBranchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    void createBranchFromInput();
   }
 });
 

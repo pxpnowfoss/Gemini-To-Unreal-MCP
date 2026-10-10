@@ -13,6 +13,7 @@ import type {
   SessionRecord,
   SessionSummary,
   LinkedProject,
+  BranchState,
 } from '../shared/types';
 
 export interface Bootstrap {
@@ -59,6 +60,10 @@ const api = {
     ipcRenderer.invoke('approval:resolve', callId, approved, always),
 
   openExternal: (url: string): Promise<{ ok: boolean }> => ipcRenderer.invoke('shell:open', url),
+
+  gitInfo: (): Promise<BranchState> => ipcRenderer.invoke('git:info'),
+  gitSwitch: (name: string, create: boolean): Promise<{ ok: boolean; output: string }> =>
+    ipcRenderer.invoke('git:switch', name, create),
 
   linkedProject: (): Promise<LinkedProject | null> => ipcRenderer.invoke('editor:project'),
   launchEditor: (): Promise<{ ok: boolean; error?: string }> =>

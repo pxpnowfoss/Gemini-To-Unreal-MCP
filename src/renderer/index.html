@@ -38,6 +38,22 @@
         <span id="folderLabel">Link a folder…</span>
       </button>
       <button id="unlinkFolderBtn" class="folder-x hidden" type="button" title="Unlink folder">×</button>
+      <div class="branch-wrap">
+        <button id="branchChip" class="branch-chip hidden" type="button" title="Current branch">
+          <span id="branchLabel">—</span>
+          <span id="branchDirty" class="branch-dirty hidden" title="Uncommitted changes">●</span>
+        </button>
+        <div id="branchMenu" class="branch-menu hidden">
+          <div class="bm-head">Switch branch</div>
+          <ul id="branchList" class="bm-list"></ul>
+          <div class="bm-new">
+            <input id="newBranchInput" type="text" spellcheck="false"
+                   placeholder="feature/new-branch" autocomplete="off" />
+            <button id="newBranchBtn" class="primary small" type="button">Create</button>
+          </div>
+          <div id="branchError" class="bm-error hidden"></div>
+        </div>
+      </div>
       <span class="session-spacer"></span>
       <button id="launchEditorBtn" class="launch-btn hidden" type="button">Start Unreal</button>
     </div>
